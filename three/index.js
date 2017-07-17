@@ -1,8 +1,20 @@
 window.onload = function () {
     var scene, camera, renderer, controls;
-    var raycaster, mouse, intersect, position;
-    var lastPostion, direction, selected;
-    var moveMatrix = new THREE.Matrix4(), stepMatrix = new THREE.Matrix4();
+    var raycaster, mouse, intersect;
+    var lastPostion, position, moving;
+    var moveMatrix = new THREE.Matrix4();
+    var moveMap = {
+        'R' : [ 'y',  1 ],
+        'L' : [ 'y', -1 ],
+        'XU': [ 'x', -1 ],
+        'XD': [ 'x',  1 ],
+        'ZU': [ 'z',  1 ],
+        'ZD': [ 'z', -1 ]
+    };
+    var moveEye = new THREE.Vector3();
+    var moveRight = new THREE.Vector3();
+    var moveUp = new THREE.Vector3();
+    var moveCenter = new THREE.Vector3();
 
     var container = { width: 500, height: 500 };
     var options = { size: 60 };
@@ -56,7 +68,6 @@ window.onload = function () {
         });
     }
 
-
     function createCube () {
         var materials = genTexture( 32, 32 ).map( function( texture ) {
             return new THREE.MeshBasicMaterial({ map: texture, overdraw: 1 });
@@ -74,12 +85,134 @@ window.onload = function () {
                     var cube = new THREE.Mesh( box, materials );
                     cube.position.set( size * (x - 1), size * (y - 1), size * (z - 1) );
 
-                    cube.storeMatrix = new THREE.Matrix4();
-
                     scene.add( cube );
                 }
             }
         }
+    }
+
+    function genDirection( offsetX, offsetY ) {
+        var direction; // XU, XD, ZU, ZD, R, L
+
+        var pos = camera.position;
+
+        // camera face to x axis
+        if ( Math.abs( pos.x / pos.y ) > 1.732 && Math.abs( pos.x / pos.z ) > 1.732 ) {
+           if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                direction = offsetX > 0 ? 'R' : 'L';
+            } else {
+                direction = offsetY > 0 
+                    ? pos.x > 0 ? 'ZD' : 'ZU'
+                    : pos.x > 0 ? 'ZU' : 'ZD';
+            }
+
+            console.log('face to x axis');
+
+            return direction;
+        }
+
+        // camera face to y axis
+        if ( Math.abs( pos.y / pos.x ) > 1.732 && Math.abs( pos.y / pos.z ) > 1.732 ) {
+            console.log('face to y axis');
+
+            moveEye.subVectors( camera.position, moveCenter ).normalize();
+            moveRight.crossVectors( camera.up, moveEye ).normalize();
+            moveUp.crossVectors( moveEye, moveRight );
+
+            console.log('moveVector', moveUp);
+
+            // up to z axis
+            if ( Math.abs( moveUp.z ) >= Math.abs( moveUp.x ) ) {
+                if ( moveUp.z <= 0 ) {
+                    if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                        direction = offsetX > 0 
+                            ? pos.y > 0 ? 'ZD' : 'ZU'
+                            : pos.y > 0 ? 'ZU' : 'ZD';
+                    } else {
+                        direction = offsetY > 0 
+                            ? pos.y > 0 ? 'XD' : 'XU'
+                            : pox.y > 0 ? 'XU' : 'XD';
+                    }
+
+                    return direction;
+                } else {
+                    if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                        direction = offsetX > 0 
+                            ? pos.y > 0 ? 'ZU' : 'ZD'
+                            : pos.y > 0 ? 'ZD' : 'ZU';
+                    } else {
+                        direction = offsetY > 0 
+                            ? pos.y > 0 ? 'XU' : 'XD'
+                            : pos.y > 0 ? 'XD' : 'XU';
+                    }
+
+                    return direction;
+                }
+            }
+            // up to x axis 
+            else {
+                if ( moveUp.x < 0 ) {
+                    if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                        direction = offsetX > 0
+                            ? pos.y > 0 ? 'XU' : 'XD'
+                            : pos.y > 0 ? 'XD' : 'XU';
+                    } else {
+                        direction = offsetY > 0 
+                            ? pos.y > 0 ? 'ZD' : 'ZU'
+                            : pos.y > 0 ? 'ZU' : 'ZD';
+                    }
+
+                    return direction;
+                } else {
+                    if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                        direction = offsetX > 0 
+                            ? pos.y > 0 ? 'XU' : 'XD'
+                            : pos.y > 0 ? 'XD' : 'XU';
+                    } else {
+                        direction = offsetY > 0 
+                            ? pos.y > 0 ? 'ZU' : 'ZD'
+                            : pos.y > 0 ? 'ZD' : 'ZU';
+                    }
+
+                    return direction;
+                }
+            }
+
+            if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                direction = offsetX > 0 
+                    ? pos.y > 0 ? 'ZD' : 'ZU'
+                    : pos.y > 0 ? 'ZU' : 'ZD';
+            } else {
+                direction = offsetY > 0 ? 'XD' : 'XU';
+            }
+        }
+
+        // camera face to z axis
+        if ( Math.abs( pos.z / pos.x ) > 1.732 && Math.abs( pos.z / pos.y ) > 1.732 ) {
+            if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+                direction = offsetX > 0 ? 'R' : 'L';
+            } else {
+                direction = offsetY > 0 
+                    ? pos.z > 0 ? 'XD' : 'XU'
+                    : pos.z > 0 ? 'XU' : 'XD';
+            }
+
+            console.log('face to z axis');
+
+            return direction;
+        }
+
+        if ( Math.abs( offsetX ) / Math.abs( offsetY ) > 1.732 ) {
+            direction = offsetX >= 0 ? 'R' : 'L';
+        } else {
+            if ( offsetX >= 0 ) {
+                direction = offsetY > 0 ? 'ZD' : 'XU';
+            } else {
+                direction = offsetY > 0 ? 'XD' : 'ZU';
+            }
+        }
+
+        return direction;
     }
 
     function mousedown( e ) {
@@ -99,87 +232,62 @@ window.onload = function () {
         intersect = intersects[ 0 ];
         position = intersect.object.position;
 
-        selected = scene.children.filter( function( child ) {
-            child.storeMatrix.copy( child.matrixWorld );
-            return child.position.x === position.x;
-        });
-
-        console.log('mousedown');
+        moving = false;
+      
+        console.log('mousedown', intersects);
     };
 
     function mouseup( e ) {
         controls.enabled = true;
-
-        console.log('direction', direction);
-
-        switch( direction ) {
-            case 'U': 
-                selected.forEach( function( v ) {
-                    stepMatrix.makeRotationX( -90 * THREE.Math.DEG2RAD );
-
-                    // console.log('storeMatrix', v.storeMatrix);
-
-                    v.matrix.copy( v.storeMatrix );
-                    v.applyMatrix( stepMatrix );
-
-                    v.updateMatrixWorld( true );
-                });
-
-
-                break;
-            case 'R':
-                break;
-            case 'D':
-                break;
-            case 'L':
-                break;
-        }
-
         console.log('mouseup');
-
-        render();
     };
 
     function mousemove( e ) {
         if ( controls.enabled ) return;
 
+        if ( moving ) return;
+
         var offsetX = e.offsetX - lastPostion.x;
         var offsetY = e.offsetY - lastPostion.y;
 
-        lastPostion.x = e.offsetX;
-        lastPostion.y = e.offsetY;
+        if ( offsetX === 0 && offsetY === 0 ) return ;
 
-        // direction: U, R, D, L
-        if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
-            direction = offsetX > 0 ? 'R' : 'L';
-        } else {
-            direction = offsetY > 0 ? 'D' : 'U';
-        }
+        moving = true;
+
+        console.log('offsetX', offsetX);
+        console.log('offsetY', offsetY);
+
+
+        var direction = genDirection( offsetX, offsetY );
 
         console.log('direction', direction);
         console.log('mousemove');
 
-        switch( direction ) {
-            case 'U': 
-                selected = scene.children.filter( function( child ) {
-                    return child.position.x === position.x;
-                });
 
-                // console.log('selected', selected);
+        var moveDir = moveMap[ direction ];
+        var moveAxis = moveDir[ 0 ];
+        var moveDiff = moveDir[ 1 ] * 3 * THREE.Math.DEG2RAD;
 
-                selected.forEach( function( v ) {
-                    moveMatrix.makeRotationX( offsetY * 0.2 * THREE.Math.DEG2RAD );
-                    v.applyMatrix( moveMatrix );
-                });
+        moveMatrix[ 'makeRotation' + moveAxis.toUpperCase() ]( moveDiff );
 
-                break;
-            case 'R':
-                break;
-            case 'D':
-                break;
-            case 'L':
-                break;
-        };
+        var interval = null, count = 0;
+
+        var selected = scene.children.filter( function( child ) {
+            return Math.abs( child.position[ moveAxis ] - position[ moveAxis ] ) < 0.01;
+        });
+
+        interval = setInterval( function() {
+            selected.forEach( function( v ) {
+                v.applyMatrix( moveMatrix );
+            });
+
+            if ( ++count === 30 ) {
+                clearInterval( interval );
+                interval = null;
+            }
+
+            render();
+        }, 10 );
 
         render();
     };
@@ -206,7 +314,7 @@ window.onload = function () {
         renderer.setClearColor( 0x1d1f20, 1 );
 
         controls = new THREE.OrbitControls( camera, renderer.domElement );
-        controls.addEventListener( 'change', render ); // remove when using animation loop
+        controls.addEventListener( 'change', render );
         controls.enableZoom = false;
         controls.enablePan = false;
 
@@ -223,6 +331,9 @@ window.onload = function () {
     }
 
     function render () {
+        // let up = new THREE.Vector3().copy( camera.up );
+        // console.log('camera', up.applyMatrix4( camera.matrixWorldInverse ) );
+
         renderer.render( scene, camera );
     }
 
