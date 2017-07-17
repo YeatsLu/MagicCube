@@ -1,5 +1,8 @@
 window.onload = function () {
     var scene, camera, renderer, controls;
+    var raycaster, mouse, intersect, position;
+    var lastPostion, direction, selected;
+    var moveMatrix = new THREE.Matrix4(), stepMatrix = new THREE.Matrix4();
 
     var container = { width: 500, height: 500 };
     var options = { size: 60 };
@@ -28,7 +31,7 @@ window.onload = function () {
             ctx.lineTo( x + width, y + height - radius );
             ctx.quadraticCurveTo( x + width, y + height, x + width - radius, y + height );
             ctx.lineTo( x + radius, y + height );
-            ctx.quadraticCurveTo (x, y + height, x, y + height - radius );
+            ctx.quadraticCurveTo ( x, y + height, x, y + height - radius );
             ctx.lineTo( x, y + radius );
             ctx.quadraticCurveTo( x, y, x + radius, y);
             ctx.closePath();
@@ -71,12 +74,115 @@ window.onload = function () {
                     var cube = new THREE.Mesh( box, materials );
                     cube.position.set( size * (x - 1), size * (y - 1), size * (z - 1) );
 
+                    cube.storeMatrix = new THREE.Matrix4();
+
                     scene.add( cube );
                 }
             }
         }
     }
 
+    function mousedown( e ) {
+        lastPostion = { x: e.offsetX, y: e.offsetY };
+
+        mouse.x = ( e.offsetX / container.width ) * 2 - 1;
+        mouse.y = -( e.offsetY / container.height ) * 2 + 1;
+
+        raycaster.setFromCamera( mouse, camera );
+
+        var intersects = raycaster.intersectObjects( scene.children );
+
+        if ( intersects.length === 0 ) return;
+
+        controls.enabled = false;
+
+        intersect = intersects[ 0 ];
+        position = intersect.object.position;
+
+        selected = scene.children.filter( function( child ) {
+            child.storeMatrix.copy( child.matrixWorld );
+            return child.position.x === position.x;
+        });
+
+        console.log('mousedown');
+    };
+
+    function mouseup( e ) {
+        controls.enabled = true;
+
+        console.log('direction', direction);
+
+        switch( direction ) {
+            case 'U': 
+                selected.forEach( function( v ) {
+                    stepMatrix.makeRotationX( -90 * THREE.Math.DEG2RAD );
+
+                    // console.log('storeMatrix', v.storeMatrix);
+
+                    v.matrix.copy( v.storeMatrix );
+                    v.applyMatrix( stepMatrix );
+
+                    v.updateMatrixWorld( true );
+                });
+
+
+                break;
+            case 'R':
+                break;
+            case 'D':
+                break;
+            case 'L':
+                break;
+        }
+
+        console.log('mouseup');
+
+        render();
+    };
+
+    function mousemove( e ) {
+        if ( controls.enabled ) return;
+
+        var offsetX = e.offsetX - lastPostion.x;
+        var offsetY = e.offsetY - lastPostion.y;
+
+        lastPostion.x = e.offsetX;
+        lastPostion.y = e.offsetY;
+
+        // direction: U, R, D, L
+        if ( Math.abs( offsetX ) > Math.abs( offsetY ) ) {
+            direction = offsetX > 0 ? 'R' : 'L';
+        } else {
+            direction = offsetY > 0 ? 'D' : 'U';
+        }
+
+        console.log('direction', direction);
+        console.log('mousemove');
+
+        switch( direction ) {
+            case 'U': 
+                selected = scene.children.filter( function( child ) {
+                    return child.position.x === position.x;
+                });
+
+                // console.log('selected', selected);
+
+                selected.forEach( function( v ) {
+                    moveMatrix.makeRotationX( offsetY * 0.2 * THREE.Math.DEG2RAD );
+                    v.applyMatrix( moveMatrix );
+                });
+
+                break;
+            case 'R':
+                break;
+            case 'D':
+                break;
+            case 'L':
+                break;
+        };
+
+        render();
+    };
 
     function init () {
         scene = new THREE.Scene();
@@ -101,12 +207,19 @@ window.onload = function () {
 
         controls = new THREE.OrbitControls( camera, renderer.domElement );
         controls.addEventListener( 'change', render ); // remove when using animation loop
+        controls.enableZoom = false;
+        controls.enablePan = false;
 
         document.body.appendChild( renderer.domElement );
 
-        createCube();
+        renderer.domElement.addEventListener( 'mousedown', mousedown );
+        renderer.domElement.addEventListener( 'mouseup', mouseup );
+        renderer.domElement.addEventListener( 'mousemove', mousemove );
 
-        console.log('scene', scene);
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2( -1, -1 );
+
+        createCube();
     }
 
     function render () {
